@@ -67,12 +67,12 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
 chrome.downloads.onDeterminingFilename.addListener(function (download, suggest) { // determine correct location
 
 		// if settings already cached, use 'em
-		if (w) determineFilename(download, suggest);
+		if (w) return determineFilename(download, suggest);
 
 		// get settings async'ly otherwise and chache them
 		chrome.storage.sync.get(null, function (storage) {
 				w = storage;
-				determineFilename(download, suggest);
+				return determineFilename(download, suggest);
 			}
 		);
 });
