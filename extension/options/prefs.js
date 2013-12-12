@@ -88,7 +88,7 @@ function restoreprefs(storage, init) // init
 	{
 		delete_rule_buttons[i].addEventListener("click", function(){
 			storage[this.dataset.from].splice([this.dataset.nr], 1);
-			save_new_value(this.dataset.from, storage[this.dataset.from]);
+			save_new_value(this.dataset.from, storage[this.dataset.from], storage);
 		}, false);
 	}
 
