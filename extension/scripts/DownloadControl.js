@@ -96,7 +96,7 @@ chrome.downloads.onChanged.addListener( function(change){
 
 
 // determine correct location
-function determinFilename (download, suggest) {
+function determineFilename (download, suggest) {
 
 	if (!w) { // shouldn't possibly ever happen
 		console.warn('DownloadControl: Settings cache empty!');
