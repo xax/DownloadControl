@@ -1,24 +1,24 @@
 window.addEventListener("DOMContentLoaded", function () {
 		chrome.storage.sync.get(null, function (storage) {
-				restoreprefs(storage);
+				restoreprefs(storage, true);
 		});
 	},
 	false
 );
 window.addEventListener("DOMContentLoaded", localize, false);
-window.addEventListener("DOMContentLoaded", add_page_handling, false);
+
 
 window.addEventListener("change", function(e) // save preferences:
 {
 	if(e.target.id === "url" || e.target.id === "ext" || e.target.id === "dir") return; // saved via "Add"-button
-	
+
 	if(e.target.id === "defaultPath"){
 		var p = correct_path_format(e.target.value);
 
 		if(p) 	e.target.value = p;
 		else 	return;
 	}
-	
+
 	if(e.target.type === "checkbox") save_new_value(e.target.id, e.target.checked?"1":"0");
 	else if(e.target.type === "radio")
 	{
@@ -31,10 +31,12 @@ window.addEventListener("change", function(e) // save preferences:
 	else save_new_value(e.target.id, e.target.value);
 },false);
 
-function save_new_value(key, value)
+
+/// @param storage [opt] - give storage object to/and update forms w/o reloading
+function save_new_value(key, value, storage)
 {
 	key = key.split("."); // split tree
-	
+
 	// save in bg's settings object not neccessary: handled by storage event there
 	// save in Chrome's synced storage:
 	var saveobject = {};
@@ -43,11 +45,13 @@ function save_new_value(key, value)
 	saveobjectBranch[ key[key.length-1] ] = value;
 	chrome.storage.sync.set(saveobject);
 
-	// update settings page:
-	restoreprefs();
+	// update settings page (of not initially loading):
+	if (storage) restoreprefs(storage);
 }
 
-function restoreprefs(storage)
+
+/// @param init [bool,opt] - true if called from DOMContentLoaded, add handlers then
+function restoreprefs(storage, init) // init
 {
 	// get rules:
 	var rule_arrays = ["rules_both", "rules_url", "rules_ext"];
@@ -71,10 +75,10 @@ function restoreprefs(storage)
 			if(storage[rules][i].ext) tr += "<td contenteditable spellcheck='false' data-rule='"+rules+"."+i+".ext'>"+getFileTypes(storage[rules][i])+"</td>";
 			tr += "<td contenteditable spellcheck='false' data-rule='"+rules+"."+i+".dir'>"+storage[rules][i].dir+"</td>\
 				   <td class='delete_rule' data-nr='"+i+"' data-from='"+rules+"'></td></tr>";
-			
+
 			rules_element.innerHTML += tr;
 		}
-		
+
 		if(storage[rules].length === 0) rules_element.innerHTML += "<br><span>No rules yet</span>";
 	}
 
@@ -87,34 +91,40 @@ function restoreprefs(storage)
 			save_new_value(this.dataset.from, storage[this.dataset.from]);
 		}, false);
 	}
-	
+
 	// get inputs:
-	var inputs = document.getElementsByTagName("input");	
+	var inputs = document.getElementsByTagName("input");
 	for(var i = 0; i < inputs.length; i++){
 		if( !storage[inputs[i].id] && !storage[inputs[i].name] ) continue;
-		
+
 		if( inputs[i].type === "checkbox" )		inputs[i].checked = (storage[inputs[i].id] === "0" ? false : true);
 		else if ( inputs[i].type === "radio" ){	if( inputs[i].value === storage[inputs[i].name] ) inputs[i].checked = true; }
 		else									inputs[i].value = storage[inputs[i].id];
 	}
+
+	if (!!init) add_page_handling(storage);
 }
+
 
 function make_array(ext_string){
 	ext_string = ext_string.split(" ").join(""); // remove all blanks
 	ext_string = ext_string.split(".").join(""); // remove all dots
-	
+
 	var ext_array = ext_string.toLowerCase().split(",");
 	for(var i = ext_array.length-1; i >= 0; i--) if(ext_array[i] === "") ext_array.splice(i, 1);
 
 	return ext_array;
 }
+
+
 function getFileTypes(rule){
 	var ext_string = "";
 	for(var i in rule.ext) ext_string += (ext_string === "" ? "" : ", ") + rule.ext[i];
 	return ext_string;
 }
 
-function add_page_handling()
+
+function add_page_handling(storage)
 {
 	// change subpages:
 	var menu = document.getElementsByClassName("menu");
@@ -127,12 +137,12 @@ function add_page_handling()
 			document.getElementById("content"+this.dataset.target).className = "visible";
 		}, false);
 	}
-	
+
 	// save new rules:
 	document.getElementById("add_rule").addEventListener("click", function(){
 		if((document.getElementById("url").value === "" && document.getElementById("ext").value === "") || document.getElementById("dir").value === "")
 			alert( chrome.i18n.getMessage("incompleteInput") );
-		else 
+		else
 		{
 			var dir = correct_path_format(document.getElementById("dir").value);
 			if(!dir) return;
@@ -140,21 +150,21 @@ function add_page_handling()
 			if(document.getElementById("ext").value === "")
 			{
 				storage.rules_url[storage.rules_url.length] = { "url":document.getElementById("url").value, "dir":dir };
-				save_new_value("rules_url", storage.rules_url);
+				save_new_value("rules_url", storage.rules_url, storage);
 			}
 			else if(document.getElementById("url").value === "")
 			{
 				storage.rules_ext[storage.rules_ext.length] = { "ext": make_array(document.getElementById("ext").value), "dir":dir };
-				save_new_value("rules_ext", storage.rules_ext);
+				save_new_value("rules_ext", storage.rules_ext, storage);
 			}
 			else /* url & ext */
 			{
 				storage.rules_both[storage.rules_both.length] = { "url":document.getElementById("url").value, "ext":make_array(document.getElementById("ext").value), "dir":dir };
-				save_new_value("rules_both", storage.rules_both);
+				save_new_value("rules_both", storage.rules_both, storage);
 			}
 		}
 	}, false);
-	
+
 	// change existing rules:
 	document.getElementById("inputchangelistener").addEventListener("input", function(e){
 		e.target.addEventListener("blur", handleChanges, false);
@@ -165,8 +175,8 @@ function add_page_handling()
 
 		if		(t.dataset.rule.indexOf(".ext") !== -1) v = make_array(t.innerHTML);
 		else if (t.dataset.rule.indexOf(".dir") !== -1) v = correct_path_format(t.innerHTML);
-		
-		if(v) save_new_value(t.dataset.rule, v);
+
+		if(v) save_new_value(t.dataset.rule, v, storage);
 		t.removeEventListener("blur", handleChanges, false);
 	}
 
@@ -175,17 +185,18 @@ function add_page_handling()
 		e.preventDefault(); e.stopPropagation();
 		document.getElementById("help").style.display = "none";
 	}, false);
-	
+
 	// prevent shifting of page caused by scrollbars:
 	scrollbarHandler.registerCenteredElement(document.getElementById('tool-container'));
 }
+
 
 function correct_path_format(p)
 {
 	p = p.replace(/\//gi, "\\");			// convert forward slashes into back slashes
 	if(p[0] === "\\") p = p.substring(1);	// no slash at beginning
 	if(p[p.length-1] !== "\\") p += "\\";	// slash at end
-	
+
 	if( p[1] === ":" || (p[0] === "." && p[1] === ".") ){
 		if (p[1] === ":")	alert( chrome.i18n.getMessage("pathAbsoluteError") );
 		else 				alert( chrome.i18n.getMessage("pathOutsideError") );
@@ -195,10 +206,11 @@ function correct_path_format(p)
 	else return p;
 }
 
+
 function localize()
 {
 	if(chrome.i18n.getMessage("lang") === "ar" || chrome.i18n.getMessage("lang") === "ur_PK") document.body.dir = "rtl";
-	
+
 	var strings = document.getElementsByClassName("i18n");
 	for(var i = 0; i < strings.length; i++) strings[i].innerHTML = chrome.i18n.getMessage(strings[i].dataset.i18n) + strings[i].innerHTML;
 }

@@ -5,7 +5,7 @@
 	"homepage_url"		: "http://christoph142.wordpress.com",
 	
 	"default_locale"	: "en",
-	"version"			: "1.0xa",
+	"version"			: "1.0",
 	"icons"				: { "128": "images/128.png" },
 	
 	"background"		: {"scripts": ["scripts/DownloadControl.js"], "persistent": false},
