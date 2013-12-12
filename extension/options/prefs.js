@@ -1,6 +1,29 @@
 window.addEventListener("DOMContentLoaded", function () {
 		chrome.storage.sync.get(null, function (storage) {
 				restoreprefs(storage, true);
+				add_page_handling(storage);
+
+				window.addEventListener("change", function(e) { // save preferences:
+						if(e.target.id === "url" || e.target.id === "ext" || e.target.id === "dir") return; // saved via "Add"-button
+
+						if(e.target.id === "defaultPath"){
+							var p = correct_path_format(e.target.value);
+
+							if(p) 	e.target.value = p;
+							else 	return;
+						}
+
+						if(e.target.type === "checkbox") save_new_value(e.target.id, e.target.checked?"1":"0", storage);
+						else if(e.target.type === "radio")
+						{
+							var radio = document.getElementsByName(e.target.name);
+							for(var i = 0; i < radio.length; i++)
+							{
+								if(radio[i].checked){ save_new_value(radio[i].name, radio[i].value, storage); break; }
+							}
+						}
+						else save_new_value(e.target.id, e.target.value, storage);
+				},false);
 		});
 	},
 	false
@@ -8,41 +31,24 @@ window.addEventListener("DOMContentLoaded", function () {
 window.addEventListener("DOMContentLoaded", localize, false);
 
 
-window.addEventListener("change", function(e) // save preferences:
-{
-	if(e.target.id === "url" || e.target.id === "ext" || e.target.id === "dir") return; // saved via "Add"-button
-
-	if(e.target.id === "defaultPath"){
-		var p = correct_path_format(e.target.value);
-
-		if(p) 	e.target.value = p;
-		else 	return;
-	}
-
-	if(e.target.type === "checkbox") save_new_value(e.target.id, e.target.checked?"1":"0");
-	else if(e.target.type === "radio")
-	{
-		var radio = document.getElementsByName(e.target.name);
-		for(var i = 0; i < radio.length; i++)
-		{
-			if(radio[i].checked){ save_new_value(radio[i].name, radio[i].value); break; }
-		}
-	}
-	else save_new_value(e.target.id, e.target.value);
-},false);
-
-
 /// @param storage [opt] - give storage object to/and update forms w/o reloading
-function save_new_value(key, value, storage)
-{
+function save_new_value (key, value, storage) {
 	key = key.split("."); // split tree
+	if (0 == key.length) return; // shouldn't happen
+
+	var saveobject = { };
+	if (1 === key.length) { // store a single value or complete array
+		saveobject[key[0]] = value;
+	}
+	else {
+		saveobject[key[0]] = storage[key[0]] || [];
+		var saveobjectBranch = saveobject[key[0]];
+		for (var i = 1; i < key.length-1; i++) saveobjectBranch = saveobjectBranch[ key[i] ]; // not very failure tolerant ##
+		saveobjectBranch[ key[key.length-1] ] = value;
+	}
 
 	// save in bg's settings object not neccessary: handled by storage event there
 	// save in Chrome's synced storage:
-	var saveobject = {};
-	var saveobjectBranch = saveobject;
-	for(var i = 0; i < key.length-1; i++){ saveobjectBranch = saveobjectBranch[ key[i] ] = {}; }
-	saveobjectBranch[ key[key.length-1] ] = value;
 	chrome.storage.sync.set(saveobject);
 
 	// update settings page (of not initially loading):
@@ -50,8 +56,7 @@ function save_new_value(key, value, storage)
 }
 
 
-/// @param init [bool,opt] - true if called from DOMContentLoaded, add handlers then
-function restoreprefs(storage, init) // init
+function restoreprefs(storage)
 {
 	// get rules:
 	var rule_arrays = ["rules_both", "rules_url", "rules_ext"];
@@ -101,8 +106,6 @@ function restoreprefs(storage, init) // init
 		else if ( inputs[i].type === "radio" ){	if( inputs[i].value === storage[inputs[i].name] ) inputs[i].checked = true; }
 		else									inputs[i].value = storage[inputs[i].id];
 	}
-
-	if (!!init) add_page_handling(storage);
 }
 
 
