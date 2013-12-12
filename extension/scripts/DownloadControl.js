@@ -6,7 +6,7 @@ var w = null;
 
 chrome.runtime.onInstalled.addListener(function (details) {
 		var reason = details.reason;
-		if (('install' === reason) || ('update' == reason)) {
+		if (('install' === reason) || ('update' === reason)) {
 
 			chrome.storage.sync.get(null, function (storage) {
 					// quasi constants
@@ -69,7 +69,7 @@ chrome.downloads.onDeterminingFilename.addListener(function (download, suggest) 
 		// if settings already cached, use 'em
 		if (w) return determineFilename(download, suggest);
 
-		// get settings async'ly otherwise and chache them
+		// get settings async'ly otherwise and cache them
 		chrome.storage.sync.get(null, function (storage) {
 				w = storage;
 				return determineFilename(download, suggest);
