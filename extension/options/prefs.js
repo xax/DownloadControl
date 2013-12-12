@@ -6,12 +6,18 @@ window.addEventListener("DOMContentLoaded", function () {
 	false
 );
 window.addEventListener("DOMContentLoaded", localize, false);
+window.addEventListener("DOMContentLoaded", add_page_handling, false);
 
 window.addEventListener("change", function(e) // save preferences:
 {
 	if(e.target.id === "url" || e.target.id === "ext" || e.target.id === "dir") return; // saved via "Add"-button
 	
-	if(e.target.id === "defaultPath") e.target.value = correct_path_format(e.target.value);
+	if(e.target.id === "defaultPath"){
+		var p = correct_path_format(e.target.value);
+
+		if(p) 	e.target.value = p;
+		else 	return;
+	}
 	
 	if(e.target.type === "checkbox") save_new_value(e.target.id, e.target.checked?"1":"0");
 	else if(e.target.type === "radio")
@@ -36,6 +42,9 @@ function save_new_value(key, value)
 	for(var i = 0; i < key.length-1; i++){ saveobjectBranch = saveobjectBranch[ key[i] ] = {}; }
 	saveobjectBranch[ key[key.length-1] ] = value;
 	chrome.storage.sync.set(saveobject);
+
+	// update settings page:
+	restoreprefs();
 }
 
 function restoreprefs(storage)
@@ -44,7 +53,17 @@ function restoreprefs(storage)
 	var rule_arrays = ["rules_both", "rules_url", "rules_ext"];
 	for(var i in rule_arrays)
 	{
-		rules = rule_arrays[i];
+		var rules = rule_arrays[i];
+		var rules_element = document.getElementById(rules);
+
+		// head:
+		var head = "<tr>";
+		if(rules !== "rules_ext") head += "<th>"+chrome.i18n.getMessage("website")+"</th>";
+		if(rules !== "rules_url") head += "<th>"+chrome.i18n.getMessage("file_types")+"</th>";
+		head += "<th>"+chrome.i18n.getMessage("directory")+"</th></tr>";
+		rules_element.innerHTML = head;
+
+		// content:
 		for(var i = 0; i < storage[rules].length; i++)
 		{
 			var tr = "<tr class='rule'>";
@@ -53,11 +72,12 @@ function restoreprefs(storage)
 			tr += "<td contenteditable spellcheck='false' data-rule='"+rules+"."+i+".dir'>"+storage[rules][i].dir+"</td>\
 				   <td class='delete_rule' data-nr='"+i+"' data-from='"+rules+"'></td></tr>";
 			
-			document.getElementById(rules).innerHTML += tr;
+			rules_element.innerHTML += tr;
 		}
 		
-		if(storage[rules].length === 0) document.getElementById(rules).innerHTML += "<br><span>No rules yet</span>";
+		if(storage[rules].length === 0) rules_element.innerHTML += "<br><span>No rules yet</span>";
 	}
+
 	// delete rule buttons:
 	var delete_rule_buttons = document.getElementsByClassName("delete_rule");
 	for(var i = 0; i < delete_rule_buttons.length; i++)
@@ -65,7 +85,6 @@ function restoreprefs(storage)
 		delete_rule_buttons[i].addEventListener("click", function(){
 			storage[this.dataset.from].splice([this.dataset.nr], 1);
 			save_new_value(this.dataset.from, storage[this.dataset.from]);
-			location.reload();
 		}, false);
 	}
 	
@@ -78,8 +97,6 @@ function restoreprefs(storage)
 		else if ( inputs[i].type === "radio" ){	if( inputs[i].value === storage[inputs[i].name] ) inputs[i].checked = true; }
 		else									inputs[i].value = storage[inputs[i].id];
 	}
-	
-	add_page_handling(storage);
 }
 
 function make_array(ext_string){
@@ -97,7 +114,7 @@ function getFileTypes(rule){
 	return ext_string;
 }
 
-function add_page_handling(storage)
+function add_page_handling()
 {
 	// change subpages:
 	var menu = document.getElementsByClassName("menu");
@@ -114,11 +131,12 @@ function add_page_handling(storage)
 	// save new rules:
 	document.getElementById("add_rule").addEventListener("click", function(){
 		if((document.getElementById("url").value === "" && document.getElementById("ext").value === "") || document.getElementById("dir").value === "")
-			alert(chrome.i18n.getMessage("insufficient_input"));
+			alert( chrome.i18n.getMessage("incompleteInput") );
 		else 
 		{
 			var dir = correct_path_format(document.getElementById("dir").value);
-			
+			if(!dir) return;
+
 			if(document.getElementById("ext").value === "")
 			{
 				storage.rules_url[storage.rules_url.length] = { "url":document.getElementById("url").value, "dir":dir };
@@ -135,15 +153,22 @@ function add_page_handling(storage)
 				save_new_value("rules_both", storage.rules_both);
 			}
 		}
-		location.reload();
 	}, false);
 	
 	// change existing rules:
-	document.getElementById("inputchangelistener").addEventListener("input", function(e){ // &nbsp; !!!
-		if		(e.target.dataset.rule.indexOf(".ext") !== -1)	save_new_value(e.target.dataset.rule, make_array(e.target.innerHTML));
-		else if (e.target.dataset.rule.indexOf(".dir") !== -1) 	save_new_value(e.target.dataset.rule, correct_path_format(e.target.innerHTML));
-		else	/* url match */									save_new_value(e.target.dataset.rule, e.target.innerHTML);
+	document.getElementById("inputchangelistener").addEventListener("input", function(e){
+		e.target.addEventListener("blur", handleChanges, false);
 	}, false);
+	function handleChanges(){ // &nbsp; !!!
+		var t = window.event.target;
+		var v = t.innerHTML;
+
+		if		(t.dataset.rule.indexOf(".ext") !== -1) v = make_array(t.innerHTML);
+		else if (t.dataset.rule.indexOf(".dir") !== -1) v = correct_path_format(t.innerHTML);
+		
+		if(v) save_new_value(t.dataset.rule, v);
+		t.removeEventListener("blur", handleChanges, false);
+	}
 
 	//help:
 	document.getElementById("close_help").addEventListener("click", function(e){
@@ -161,7 +186,13 @@ function correct_path_format(p)
 	if(p[0] === "\\") p = p.substring(1);	// no slash at beginning
 	if(p[p.length-1] !== "\\") p += "\\";	// slash at end
 	
-	return p;
+	if( p[1] === ":" || (p[0] === "." && p[1] === ".") ){
+		if (p[1] === ":")	alert( chrome.i18n.getMessage("pathAbsoluteError") );
+		else 				alert( chrome.i18n.getMessage("pathOutsideError") );
+
+		return false;
+	}
+	else return p;
 }
 
 function localize()
@@ -169,11 +200,5 @@ function localize()
 	if(chrome.i18n.getMessage("lang") === "ar" || chrome.i18n.getMessage("lang") === "ur_PK") document.body.dir = "rtl";
 	
 	var strings = document.getElementsByClassName("i18n");
-	for(var i = 0; i < strings.length; i++)
-	{
-		if(strings[i].tagName === "IMG")	strings[i].title = chrome.i18n.getMessage(strings[i].title); // tooltips
-		else								strings[i].innerHTML = chrome.i18n.getMessage(strings[i].dataset.i18n) + strings[i].innerHTML;
-	}
+	for(var i = 0; i < strings.length; i++) strings[i].innerHTML = chrome.i18n.getMessage(strings[i].dataset.i18n) + strings[i].innerHTML;
 }
-
-var bubble_setback; // timeout for info bubbles
