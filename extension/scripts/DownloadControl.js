@@ -1,19 +1,108 @@
-//retrieve and store settings (filled with default values):
-var w = {};
-chrome.storage.sync.get( null, function(storage){
-	w = {
-	"conflictAction":	(!storage["conflictAction"] ? "prompt"	: storage["conflictAction"]),
-	"defaultPath"	:	(!storage["defaultPath"] 	? ""		: storage["defaultPath"]),
-	"rules_both" 	:	(!storage["rules_both"]		? [] 		: storage["rules_both"]),
-	"rules_url" 	:	(!storage["rules_url"]		? [] 		: storage["rules_url"]),
-	"rules_ext" 	:	(!storage["rules_ext"]		? [] 		: storage["rules_ext"])
-	};
+'use strict';
+
+// cache settings from storage for lifetime of event page
+var w = null;
+
+
+chrome.runtime.onInstalled.addListener(function (details) {
+		var reason = details.reason;
+		if (('install' === reason) || ('update' == reason)) {
+
+			chrome.storage.sync.get(null, function (storage) {
+					// quasi constants
+					var cThisSettingsVersion = 1;
+
+					// create settings if missing
+					if (undefined === storage['settingsVersion'])
+						storage.settingsVersion = cThisSettingsVersion;
+					if (null == storage['conflictAction'])
+						storage.conflictAction = 'prompt';
+					if (null == storage['defaultPath'])
+						storage.defaultPath = '';
+					if (null == storage['rules_both'])
+						storage.rules_both = [];
+					if (null == storage['rules_url'])
+						storage.rules_url = [];
+					if (null == storage['rules_ext'])
+						storage.rules_ext = [];
+
+					// opportunity to update settings
+					if (('update' === reason)
+							&& parseInt(storage['settingsVersion']) < cThisSettingsVersion) {
+						// ...
+						// finaly update storage version
+						storage.settingsVersion = cThisSettingsVersion;
+					}
+					
+					// store created/updated settings
+					chrome.storage.sync.set(storage); // assuming fast storage ;)
+				} // storage handled
+			);
+
+			// show options page on install
+			if ('install' === reason) { // only on new installs
+				// { // alternatively on both, install and update
+				chrome.tabs.create({
+						url: 'options/options.html?ref=installed'
+					}
+				);
+			}
+		}
+	}
+);
+
+
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+		// not our storeage area or storage gets freshly read next time it is used, anyway
+		if (!w || (areaName !== 'sync')) return;
+		
+		// mirror updates to cache
+		for (var k in changes) {
+			w[k] = changes[k].newValue;
+		}
+	}
+);
+
+
+chrome.downloads.onDeterminingFilename.addListener(function (download, suggest) { // determine correct location
+
+		// if settings already cached, use 'em
+		if (w) determineFilename(download, suggest);
+
+		// get settings async'ly otherwise and chache them
+		chrome.storage.sync.get(null, function (storage) {
+				w = storage;
+				determineFilename(download, suggest);
+			}
+		);
+});
+
+chrome.downloads.onChanged.addListener( function(change){
+		/*if(change.filename){ // check for manual change of download location:
+			console.log("now: "+change.filename.current);
+			console.log("path: "+path);
+			if(change.filename.current.indexOf(path) === -1) console.log("location manually changed");
+			else console.log("location unchanged");
+		}*/
+		return;
+		
+		
+		if(!change.state) return;
+		else if(change.state.current !== "complete") return;
+		
+		chrome.downloads.open(change.id);
+		window.setTimeout( function(){ deleteFile(change.id); }, 5000);
 });
 
 
+// determine correct location
+function determinFilename (download, suggest) {
 
-chrome.downloads.onDeterminingFilename.addListener( function(download, suggest){ // determine correct location
-	
+	if (!w) { // shouldn't possibly ever happen
+		console.warn('DownloadControl: Settings cache empty!');
+		return false;
+	}
+
 	var path = "";
 	var filetype = download.filename.substring(download.filename.lastIndexOf(".")+1);
 	
@@ -57,26 +146,12 @@ chrome.downloads.onDeterminingFilename.addListener( function(download, suggest){
 	path = path.replace(/%FILETYPE%/gi, filetype);
 	
 	suggest({ filename: path+download.filename, conflictAction: w.conflictAction });
-});
+	
+}
 
-chrome.downloads.onChanged.addListener( function(change){
-	/*if(change.filename){ // check for manual change of download location:
-		console.log("now: "+change.filename.current);
-		console.log("path: "+path);
-		if(change.filename.current.indexOf(path) === -1) console.log("location manually changed");
-		else console.log("location unchanged");
-	}*/
-	return;
-	
-	
-	if(!change.state) return;
-	else if(change.state.current !== "complete") return;
-	
-	chrome.downloads.open(change.id);
-	window.setTimeout( function(){ deleteFile(change.id); }, 5000);
-});
 
-function deleteFile(change_id){
+// delete file from manager
+function deleteFile (change_id) {
 	chrome.downloads.search({id: change_id}, function(downloads){
 		if(!downloads[0].exists)
 		{

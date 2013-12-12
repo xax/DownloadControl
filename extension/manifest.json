@@ -1,14 +1,14 @@
 {	
-	"name"				: "Download Control",
+	"name"				: "Download Control [xa mod]",
 	"description"		: "__MSG_description__",
 	"developer"			: {"name" : "Christoph D."},
 	"homepage_url"		: "http://christoph142.wordpress.com",
 	
 	"default_locale"	: "en",
-	"version"			: "1.0",
+	"version"			: "1.0xa",
 	"icons"				: { "128": "images/128.png" },
 	
-	"background"		: {"scripts": ["scripts/DownloadControl.js"]},
+	"background"		: {"scripts": ["scripts/DownloadControl.js"], "persistent": false},
   
 	"permissions"		: ["storage", "downloads", "downloads.open"],
 	"options_page"		: "options/options.html",

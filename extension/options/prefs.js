@@ -1,8 +1,11 @@
-window.addEventListener("DOMContentLoaded", restoreprefs, false);
+window.addEventListener("DOMContentLoaded", function () {
+		chrome.storage.sync.get(null, function (storage) {
+				restoreprefs(storage);
+		});
+	},
+	false
+);
 window.addEventListener("DOMContentLoaded", localize, false);
-
-var bg = chrome.extension.getBackgroundPage();
-var storage = bg.w;
 
 window.addEventListener("change", function(e) // save preferences:
 {
@@ -26,18 +29,16 @@ function save_new_value(key, value)
 {
 	key = key.split("."); // split tree
 	
-	// save in bg's settings object:
-	var saveobjectBranch = bg.w;
-	for(var i = 0; i < key.length-1; i++){ saveobjectBranch = saveobjectBranch[ key[i] ]; }
-	saveobjectBranch[ key[key.length-1] ] = value;
-	
+	// save in bg's settings object not neccessary: handled by storage event there
 	// save in Chrome's synced storage:
 	var saveobject = {};
-	saveobject[ key[0] ] = bg.w[ key[0] ];
+	var saveobjectBranch = saveobject;
+	for(var i = 0; i < key.length-1; i++){ saveobjectBranch = saveobjectBranch[ key[i] ] = {}; }
+	saveobjectBranch[ key[key.length-1] ] = value;
 	chrome.storage.sync.set(saveobject);
 }
 
-function restoreprefs()
+function restoreprefs(storage)
 {
 	// get rules:
 	var rule_arrays = ["rules_both", "rules_url", "rules_ext"];
